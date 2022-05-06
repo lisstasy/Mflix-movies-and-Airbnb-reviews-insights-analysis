@@ -1,0 +1,284 @@
+
+#Anastasiya Lis
+
+#Queries for sample_mflix.movies
+
+
+#***********************************************
+
+
+#Q1:
+
+#Find directors and the number of movies they directed where movies recieved a rating greater or equal to 9 on IMDB and which were produced in the USA.
+
+db.movies.aggregate([{"$unwind": "$directors"},{"$match": {"$and":[{"countries":{"$all":["USA"]}},{"imdb.rating":{"$gte":9}}]},{ "$project": {"directors": 1,"_id": 0 }}, { "$group": { "_id": "$directors", "count": { "$sum": 1} } }, { $sort : { count: -1 } }]).pretty()
+
+Atlas:
+$unwind : {
+  path: "$directors"
+}, 
+
+$match: {
+  "$and":[{"countries":{"$all":["USA"]}},{"imdb.rating":{"$gte":9}}]
+},
+
+$project: {
+  "directors": 1,"_id": 0
+},
+
+$group:{
+  _id: "$directors",
+  count: {
+    $sum: 1
+  }
+},
+
+$sort:{
+  count: -1
+}
+
+
+#Q2:
+
+Find the total number of appearence of actors in the movies which won at least 1 award. 
+
+db.movies.aggregate([{"$unwind": "$cast"},{ "$match": { "awards.wins": {"$gte":1}}},{ "$project": {"cast": 1,"_id": 0 }}, { "$group": { "_id": "$cast", "count": { "$sum": 1 } } }, { $sort : { count: -1 } }]).pretty()
+
+Atlas:
+$unwind : {
+  path: "$cast"
+}, 
+
+$match: {
+  "awards.wins": {"$gte":1}
+},
+
+$project: {
+  "cast": 1,"_id": 0
+},
+
+$group:{
+  _id: "$cast",
+  count: {
+    $sum: 1
+  }
+},
+
+$sort:{
+  count: -1
+}
+
+
+#Q3:
+From the table in the graphs we now the highest number of awards is received by Steven Spielberg. Let's find the number of movies he reliesed per year.
+
+Find Genres of movies 
+db.movies.aggregate([{ "$match": { "directors": {"$all":["Steven Spielberg"]}}},{ "$project": { "year":1,"directors": 1,"_id": 0 }}, { "$group": { "_id": "$year", "count": { "$sum": 1 } } }, { $sort : { "year": 1 } }]).pretty()
+
+Atlas:
+$match: {
+  "directors": {"$all":["Steven Spielberg"]}
+},
+
+$project: {
+  "year":1,"directors": 1,"_id": 0
+},
+
+$group:{
+_id: "$year",
+  count: {
+    $sum: 1 
+  }
+},
+
+$sort:{
+  "year": 1
+}
+
+#Q4:
+Find the average runtime of movies for Drama genre per country.
+
+db.movies.aggregate([{"$unwind": "$countries"},{ "$match": {"genres":{"$all":["Drama"]}}},{"$project": {"countries":1, "_id":0}}, { "$group": { "_id": "$countries", "avg_time": { "$avg":"runtime"}}},{ $sort: { "avg_time": -1 }}]).pretty()
+
+Atlas:
+$unwind : {
+   path: "$countries"
+}, 
+
+$match: {
+  "genres":{"$all":["Drama"]}
+},
+
+$project: {
+  "countries":1, "_id":0
+},
+
+$group:{
+  _id: "$countries",
+  "avg_time": {
+    "$avg": "runtime"
+  }
+},
+
+$sort:{
+  "avg_time": -1
+}
+
+
+#***********************************************
+
+
+
+#Q1: 
+#We know from the bar chart that genres which usually win the highest number of awards and are nominated mostly Drama, Comedy, and Romance. How many movies are assigned at the same time to all 3 genres: Drama, comedy, romance and have at list 1 win of award. 
+
+db.movies.find({"$and":[{"genres": {"$all":["Drama", "Comedy", "Romance"]}},{"awards.wins":{"$gte":1}}]}).count()
+
+#Q2:
+#From the map graph we now that the movies from USA usually win the higest number of awards, so let's lok for movies where the number of wins is higher than 110 and one of the 2 countries produced the movie is USA.
+#as a result, 13 movies where found, among there are the following movies: "The Lord of the Rings: The Fellowship of the Ring","Brokeback Mountain", "Lincoln" and so on. Most of these movies are dramas. 
+
+db.movies.find({"$and":[{"awards.wins":{"$gt":110}}, {"countries":{"$size": 2, "$all":["USA"]}}]})
+
+#***********************************************
+
+
+
+#Q1:
+#movies which have the same rating on IMDB and Tomatoes viewer. As a result, 10 movies like that  were found 
+db.movies.find({"$expr": { "$eq": ["$tomatoes.viewer.rating", "$imdb.rating"]}}).count()
+
+#Q2:
+#Find all movies which were written and directed by the same person, and which won at least 1 award, and display the title of these movies and director's name.
+
+db.movies.find({"$expr":{ "$and": [{ "$eq": ["$directors", "$writers"]}, {"$gte":["$awards.wins", 1]}]}},{"title":1, "directors":1}).
+
+
+#***********************************************
+
+
+
+#Q1:
+#find a movies which has a rating greater or equel to 9 on IMDB and have a rating greater or equal to 9 on Tomatoes whether for Viewer or Critic rating
+#as a result, we see that the best rated movies are 2 vovies found: "The Godfather" and "The Godfather: Part II". It's a crime, drama genres. Director "Francis Ford Coppola". 
+
+db.movies.find({"$and":[{"imdb.rating":{"$gte":9}}, {"$or":[{"tomatoes.viewer.rating":{"$gte":9}},{"tomatoes.critic.rating":{"$gte":9}}]}]})
+
+#Q2:
+#are there any other movies directed by "Francis Ford Coppola" which has a rating greater than 7. As a results, re see 10 more movies which match the conditions.
+
+db.movies.find({"$and":[{"directors": {"$all":["Francis Ford Coppola"]}},{"$or":[{"imdb.rating":{"$gt":7}}, {"tomatoes.viewer.rating":{"$gt":7}},{"tomatoes.critic.rating":{"$gt":7}}]}]})
+
+
+#Q3:
+#Movies reliased in 2015 or later and which have a rating grater or equal to 9 on any of the rating platforms. we want to know the title of the movie, genres, and the directors.
+#These movies are: "Inside Out" directed by "Pete Docter","Ronaldo Del Carmen", "The Real Miyagi" directed by "Kevin Derek", and "A Brave Heart: The Lizzie Velasquez Story" directed by 
+"Sara Hirsh Bordo".
+
+
+db.movies.find({"$and":[{"year":{"$gte":2015}},{"$or":[{"imdb.rating":{"$gte":9}}, {"tomatoes.viewer.rating":{"$gte":9}},{"tomatoes.critic.rating":{"$gte":9}}]}]}, {"title":1, "genres":1, "directors":1})
+
+
+
+#****************************
+
+
+#Gabriela Romero Anton
+#Queries for sample_airbnb.listingsAndReviews
+
+**Aggregation
+Q1:Show the most popular market  with the largest number of properties
+
+db.listingsAndReviews.aggregate([{"$project":{"address": 1, "_id": 0}},{ "$group":{"_id": "$address.market","count":{"$sum": 1}}},{$sort: {occur:-1}}]).limit(5)
+
+Atlas expression:{ "$project": { "address": 1, "_id": 0 }}, { "$group": { "_id": "$address.market", "count": { "$sum": 1}},{$sort:{occur:-1}).limit(5)
+
+Q2:Average price per night by room type 
+db.listingsAndReviews.aggregate([{$group:{ _id:"$room_type", avg_by_roomtype:{ $avg:" $price" }}}])
+
+Atlas expression:{$group:{ _id:"$room_type", avg_by_roomtype:{ $avg:" $price" }}}} 
+
+Q3:count of properties and average price per night by most populate market , number of bedrooms and beds
+
+db.listingsAndReviews.aggregate([{$group: {
+  _id: {market:"$address.market",bedrooms:"$bedrooms",beds:"$beds"},
+  "count" :{$sum:1},
+    avg:{$avg:"$price"
+  }
+}}, {$sort: {
+  count: -1 
+}]).limit(10)
+
+Atlas expression:[{$group: {
+  _id: {market:"$address.market",bedrooms:"$bedrooms",beds:"$beds"},
+  "count" :{$sum:1},
+    avg:{$avg:"$price"
+  }
+}}, {$sort: {
+  count: -1 
+}}, {$limit: 10}] 
+
+Q4:check the scores and price for the most important amenities
+
+db.listingsAndReviews.aggregate([{ "$match": { "amenities":{"$eq":["Wifi","Essentials"]}}, { "$project": {  "price": 1 ,"review_scores": 1}])
+
+Atlas expression:{ "$match": { "amenities":{"$eq":["Wifi","Essentials"]}}, { "$project": {  "price": 1 ,"review_scores": 1}
+
+********************************************************************
+
+**Comparison and logical operators
+Q1:Compare best rate property type and worst property type
+
+db.listingsAndReviews.find({"$and":[{"property_type":"Boat","property_type":"Apartment"}]})
+
+Atlas expression:{"$and":[{"property_type":"Boat","property_type":"Apartment"}]}
+
+Q2:Compare properties of $250 and $50 to see main differences
+
+db.listingsAndReviews.find({"$or":[{ "price": 250 },{ "price": 50 }]}
+)
+
+Atlas expression:{"$or":[{ "price": 250 },{ "price": 50 }]}
+*******************************************************************
+
+**$expr 
+Q1:Deposit is more expensive than the price , which of property, the most expensive is the first
+
+db.listingsAndReviews.find({ "$expr": { "$gt": [ "$security_deposit", "$price"]}} { "$project": { "address.country": 1, "_id": 0,"security_deposit":1, "price":1, "room_type":1 },{$sort:{security_deposit:-1 }})
+
+Atlas expression:{ "$expr": { "$gt": [ "$security_deposit", "$price"]}} { "$project": { "address.country": 1, "_id": 0,"security_deposit":1, "price":1, "room_type":1 },{$sort:{security_deposit:-1 }}
+
+Q2:Beds less than accommodates
+
+db.listingsAndReviews.find({ "$expr": { "$lt": [ "$accomodates", "$beds"] }})
+
+Atlas expression:{ "$expr": { "$lt": [ "$accomodates", "$beds"] }}
+
+********************************************************************
+
+**Arrays
+Q1:Which properties have the worst score and why from the comments
+
+db.listingsAndReviews.find({ "review_scores.review_scores_value":{ "$lt":6}}, { "$project": { "address.country": 1,"price":1,"room_type":1,"review_scores":1,"reviews":1}, {$sort:{"review_scores_value":+1})
+
+Atlas expression:{ "review_scores.review_scores_value":{ "$lt":6}}, { "$project": { "address.country": 1,"price":1,"room_type":1,"review_scores":1,"reviews":1}, {$sort:{"review_scores_value":+1}
+
+Q2:Find all documents with exactly 15 amenities which include all the amenities listed in the query array, display reviews and property type.
+
+db.listingsAndReviews.find({ "amenities": {"$size": 15}},{"property_type":1, "reviews":1,"review_scores":1}) 
+
+Atlas expression:{ "amenities": {"$size": 15}}
+Projection:{"property_type":1, "reviews":1,"review_scores":1} 
+
+Q3:Show host response rate greater than 70
+
+db.listingsAndReviews.find({"host.host_response_rate":{ "$gt":70}}).count()
+
+Atlas expression: {"host.host_response_rate":{ "$gt":70}}
+
+
+
+
+
+
+
